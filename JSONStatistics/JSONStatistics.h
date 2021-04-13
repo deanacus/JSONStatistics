@@ -1,4 +1,4 @@
-#pragma comment(lib, "BakkesMod.lib")
+#pragma once
 
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
@@ -7,7 +7,7 @@
 #include <fstream>
 
 
-class JSONStatistics: public BakkesMod::Plugin::BakkesModPlugin/*, public BakkesMod::Plugin::PluginWindow*/
+class JSONStatistics: public BakkesMod::Plugin::BakkesModPlugin
 {
 	std::filesystem::path dataDir;
 
