@@ -5,24 +5,48 @@
 
 #include <map>
 #include <fstream>
+#include <array>
 
+using namespace std;
 
 class JSONStatistics: public BakkesMod::Plugin::BakkesModPlugin
 {
-	std::filesystem::path dataDir;
+	filesystem::path dataDir;
 
 	virtual void onLoad();
 	virtual void onUnload();
 
 	void Bootstrap();
 	bool IsInRealGame();
-	void HandleMatchEnded(std::string name);
-	void saveFile(std::map<std::string, std::string> stats);
-	std::string MarshallToJSON(std::map<std::string, std::string> stats);
+	void HandleMatchEnded(string name);
+	void saveFile();
+	string MarshallToJSON(map<string, string> stats);
+	string BuildScoreStats();
+	string BuildOffenseStats();
+	string BuildDefenseStats();
+	string BuildTouchStats();
+	string BuildMetadata();
+	PriWrapper GetPrimaryPlayer();
+	void Log(string msg);
 
-	// Utilities
-	std::string WrapString(std::string input);
-	bool isNumber(const std::string& str);
-	void Log(std::string msg);
+	enum Events {
+		demolition,
+		aerialGoal,
+		backwardsGoal,
+		bicycleGoal,
+		longGoal,
+		turtleGoal,
+		poolShot,
+		overtimeGoal,
+		hatTrick,
+		epicSave,
+		center,
+		clear,
+		firstTouch,
+		damage,
+		ultraDamage,
+		swish,
+		death,
+	};
 };
 

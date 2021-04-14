@@ -1,6 +1,13 @@
 #include "JSONStatistics.h"
+#include "Utils.h"
+
+#include <array>
+
+using namespace std;
 
 BAKKESMOD_PLUGIN(JSONStatistics, "Save your stats to JSON", "0.1.0", 0);
+
+array<int, 17> inGameStats;
 
 void JSONStatistics::onLoad()
 {
@@ -15,120 +22,152 @@ void JSONStatistics::Bootstrap() {
 	dataDir = gameWrapper->GetDataFolder().append("JSONStatistics");
 	gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.EventMatchEnded", bind(&JSONStatistics::HandleMatchEnded, this, std::placeholders::_1));
 
-	namespace fs = std::filesystem;
+	namespace fs = filesystem;
 	fs::create_directories(dataDir);
 }
 
-void JSONStatistics::HandleMatchEnded(std::string name) {
+string JSONStatistics::BuildScoreStats() {
+	PriWrapper localPrimaryPlayer = this->GetPrimaryPlayer();
+	map<string, string> scoreStats;
+	scoreStats["mvp"] = localPrimaryPlayer.GetbMatchMVP() == true ? "true" : "false";
+	scoreStats["points"] = to_string(localPrimaryPlayer.GetMatchScore());
+	// scoreStats["damage"] = to_string(inGameStats[damage]);
+	// scoreStats["ultraDamage"] = to_string(inGameStats[ultraDamage]);
+
+	return this->MarshallToJSON(scoreStats);
+}
+
+string JSONStatistics::BuildOffenseStats() {
+	PriWrapper localPrimaryPlayer = this->GetPrimaryPlayer();
+	map<string, string> offenseStats;
+	offenseStats["goals"] = to_string(localPrimaryPlayer.GetMatchGoals());
+	offenseStats["shots"] = to_string(localPrimaryPlayer.GetMatchShots());
+	offenseStats["assists"] = to_string(localPrimaryPlayer.GetMatchAssists());
+
+	// offenseStats["hatTricks"] = to_string(inGameStats[hatTrick]);
+	// offenseStats["aerialGoals"] = to_string(inGameStats[aerialGoal]);
+	// offenseStats["backwardsGoals"] = to_string(inGameStats[backwardsGoal]);
+	// offenseStats["bicycleGoals"] = to_string(inGameStats[bicycleGoal]);
+	// offenseStats["longGoals"] = to_string(inGameStats[longGoal]);
+	// offenseStats["overtimeGoals"] = to_string(inGameStats[overtimeGoal]);
+	// offenseStats["turtleGoals"] = to_string(inGameStats[turtleGoal]);
+	// offenseStats["poolShots"] = to_string(inGameStats[poolShot]);
+	// offenseStats["swishes"] = to_string(inGameStats[swish]);
+
+	return this->MarshallToJSON(offenseStats);
+}
+
+string JSONStatistics::BuildDefenseStats() {
+	PriWrapper localPrimaryPlayer = this->GetPrimaryPlayer();
+	map<string, string> defenseStats;
+	defenseStats["saves"] = to_string(localPrimaryPlayer.GetMatchSaves());
+	// defenseStats["epicSaves"] = to_string(inGameStats[epicSave]);
+	// defenseStats["clears"] = to_string(inGameStats[clear]);
+	defenseStats["ownGoals"] = to_string(localPrimaryPlayer.GetMatchOwnGoals());
+
+	return this->MarshallToJSON(defenseStats);
+}
+
+string JSONStatistics::BuildTouchStats() {
+	PriWrapper localPrimaryPlayer = this->GetPrimaryPlayer();
+	map<string, string> touchStats;
+	touchStats["boostPickups"] = to_string(localPrimaryPlayer.GetBoostPickups());
+	touchStats["bumps"] = to_string(localPrimaryPlayer.GetCarTouches());
+	touchStats["touches"] = to_string(localPrimaryPlayer.GetBallTouches());
+	touchStats["demolitions"] = to_string(localPrimaryPlayer.GetMatchDemolishes());
+	touchStats["deaths"] = to_string(inGameStats[death]);
+	// touchStats["centers"] = to_string(inGameStats[center]);
+	// touchStats["firstTouches"] = to_string(inGameStats[firstTouch]);
+
+	return this->MarshallToJSON(touchStats);
+}
+
+string JSONStatistics::BuildMetadata() {
+	PriWrapper localPrimaryPlayer = this->GetPrimaryPlayer();
+
+	ServerWrapper server = gameWrapper->GetOnlineGame();
+
+	string timestamp = GetTimeStamp();
+
+	map<string, string> metaData;
+	metaData["id"] = server.GetMatchGUID();
+	metaData["date"] = timestamp;
+	metaData["playlist"] = server.GetPlaylist().GetTitle().ToString();
+	metaData["win"] = to_string((localPrimaryPlayer.GetTeamNum() == server.GetMatchWinner().GetTeamNum()));
+	metaData["team"] = to_string(localPrimaryPlayer.GetTeamNum());
+	metaData["arena"] = gameWrapper->GetCurrentMap();
+	metaData["mmrAdjustment"] = "0";
+}
+
+//void JSONStatistics::HandleStatEvent() {
+//
+//}
+
+void JSONStatistics::HandleMatchEnded(string name) {
 	if (!this->IsInRealGame()) {
 		return;
 	}
 
+	this->saveFile();
+}
+
+PriWrapper JSONStatistics::GetPrimaryPlayer() {
+	ServerWrapper server = gameWrapper->GetOnlineGame();
+	PlayerControllerWrapper localPrimaryPlayerController = server.GetLocalPrimaryPlayer();
+	return localPrimaryPlayerController.GetPRI();
+}
+
+bool JSONStatistics::IsInRealGame() {
+	if(!gameWrapper->IsInOnlineGame()) {
+		return false;
+	}
 	ServerWrapper server = gameWrapper->GetOnlineGame();
 	GameSettingPlaylistWrapper playlist = server.GetPlaylist();
 	PlayerControllerWrapper localPrimaryPlayerController = server.GetLocalPrimaryPlayer();
 	TeamWrapper matchWinner = server.GetMatchWinner();
-
-	if (playlist.IsLanMatch() || playlist.IsPrivateMatch() || localPrimaryPlayerController.IsNull() || matchWinner.IsNull()) {
-		return;
-	}
-
-	PriWrapper localPrimaryPlayer = localPrimaryPlayerController.GetPRI();
-
-	std::time_t rawtime;
-	time(&rawtime);
-	char timestamp[sizeof "2021-04-14T13:13:13Z"];
-	strftime(timestamp, sizeof timestamp, "%FT%TZ", gmtime(&rawtime));
-
-	this->Log(timestamp);
-
-	std::map<std::string, std::string> gameStats;
-
-	gameStats["date"] = timestamp;
-	gameStats["playlist"] = playlist.GetTitle().ToString();
-	gameStats["win"] = std::to_string((localPrimaryPlayer.GetTeamNum() == matchWinner.GetTeamNum()));
-	gameStats["mvp"] = std::to_string(localPrimaryPlayer.GetbMatchMVP());
-	gameStats["team"] = std::to_string(localPrimaryPlayer.GetTeamNum());
-	gameStats["arena"] = "tmp";
-	gameStats["mmrAdjustment"] = "0";
-	gameStats["points"] = std::to_string(localPrimaryPlayer.GetMatchScore());
-	gameStats["goals"] = std::to_string(localPrimaryPlayer.GetMatchGoals());
-	gameStats["shots"] = std::to_string(localPrimaryPlayer.GetMatchShots());
-	gameStats["assists"] = std::to_string(localPrimaryPlayer.GetMatchAssists());
-	gameStats["centers"] = "0";
-	gameStats["deaths"] = "0";
-	gameStats["demolitions"] = std::to_string(localPrimaryPlayer.GetMatchDemolishes());
-	gameStats["firstTouchs"] = "0";
-	gameStats["epicSaves"] = "0";
-	gameStats["saves"] = std::to_string(localPrimaryPlayer.GetMatchSaves());
-	gameStats["clears"] = "0";
-	gameStats["aerialGoals"] = "0";
-	gameStats["backwardsGoals"] = "0";
-	gameStats["bicycleGoals"] = "0";
-	gameStats["longGoals"] = "0";
-	gameStats["overtimeGoals"] = "0";
-	gameStats["turtleGoals"] = "0";
-	gameStats["poolShots"] = "0";
-	gameStats["swishs"] = "0";
-	gameStats["damages"] = "0";
-	gameStats["ultraDamages"] = "0";
-	gameStats["ownGoals"] = std::to_string(localPrimaryPlayer.GetMatchOwnGoals());
-	gameStats["bumps"] = std::to_string(localPrimaryPlayer.GetCarTouches());
-	gameStats["boostpickups"] = std::to_string(localPrimaryPlayer.GetBoostPickups());
-	gameStats["touches"] = std::to_string(localPrimaryPlayer.GetBallTouches());
-	
-	this->saveFile(gameStats);
+	return !gameWrapper->IsInReplay() || !gameWrapper->IsInFreeplay() || !playlist.IsLanMatch() || !playlist.IsPrivateMatch() || !localPrimaryPlayerController.IsNull() || !matchWinner.IsNull();
 }
 
-bool JSONStatistics::IsInRealGame() {
-	return gameWrapper->IsInOnlineGame() && !gameWrapper->IsInReplay() && !gameWrapper->IsInFreeplay();
-}
+string JSONStatistics::MarshallToJSON(map<string, string> stats) {
+	string newLine = "\n";
+	string lineEnding = ",";
+	string separator = ": ";
 
-std::string JSONStatistics::MarshallToJSON(std::map<std::string, std::string> stats) {
-	std::string lineEnding = ",\n";
-	std::string separator = ": ";
-
-	std::string json = "{\n";
+	string json = "";
 	for (auto const& [key, val] : stats) {
-		std::string statLine = this->WrapString(key) + separator + this->WrapString(val) + lineEnding;
+		string value = isNumber(val) ? val : WrapString(val, "\"");
+		this->Log(key + ": " + value);
+		string statLine = newLine + WrapString(key, "\"") + separator + WrapString(val, "\"") + lineEnding;
 		json.append(statLine);
 	}
 
-	json.pop_back();
-	json.append("\n}");
+	json = TrimRight(json, ",");
+	json = PadLeft(json, "{", 1);
+	json = PadRight(json, "}", 1);
+	json.append("\n");
 
 	this->Log(json);
 
 	return json;
 }
 
-bool JSONStatistics::isNumber(const std::string& str) {
-	return !str.empty() && str.find_first_not_of("-0123456789") == std::string::npos;
-}
+void JSONStatistics::saveFile() {
+	string fileContents = "";
 
-std::string JSONStatistics::WrapString(std::string input) {
-	if (this->isNumber(input)) {
-		return input;
-	}
-	std::string quote = "\"";
-	return quote + input + quote;
-}
+	fileContents += this->BuildMetadata();
+	fileContents += this->BuildScoreStats();
+	fileContents += this->BuildOffenseStats();
+	fileContents += this->BuildDefenseStats();
+	fileContents += this->BuildTouchStats();
 
-void JSONStatistics::saveFile(std::map<std::string, std::string> stats) {
-	std::string fileContents = this->MarshallToJSON(stats);
-	this->Log(fileContents);
+	string fileDate = GetTimeStamp();
 
-	std::time_t rawtime;
-	time(&rawtime);
-	char timestamp[sizeof "2021-04-14-13-13-13"];
-	strftime(timestamp, sizeof timestamp, "%F-%H-%M-%S", gmtime(&rawtime));
-
-	std::ofstream totalFile(dataDir / (timestamp + std::string(".json")));
+	ofstream totalFile(dataDir / (fileDate + string(".json")));
 	this->Log("wrote");
-	totalFile << this->MarshallToJSON(stats);
+	totalFile << fileContents;
 	totalFile.close();
 }
 
-void JSONStatistics::Log(std::string msg) {
+void JSONStatistics::Log(string msg) {
 	cvarManager->log(msg);
 }
