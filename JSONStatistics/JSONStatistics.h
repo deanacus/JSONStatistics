@@ -2,6 +2,7 @@
 
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
+#include "bakkesmod/wrappers/GameObject/Stats/StatEventWrapper.h"
 
 #include <map>
 #include <fstream>
@@ -17,16 +18,20 @@ class JSONStatistics: public BakkesMod::Plugin::BakkesModPlugin
 	virtual void onUnload();
 
 	void Bootstrap();
-	bool IsInRealGame();
-	void HandleMatchEnded(string name);
-	void saveFile();
-	string MarshallToJSON(map<string, string> stats);
+	string BuildMatchData();
+	string BuildMetadata();
+	string BuildRating();
 	string BuildScoreStats();
 	string BuildOffenseStats();
 	string BuildDefenseStats();
 	string BuildTouchStats();
-	string BuildMetadata();
+	string BuildFileContents();
+	//void HandleStatEvent();
+	void HandleMatchEnded(string name);
 	PriWrapper GetPrimaryPlayer();
+	bool IsInRealGame();
+	string MarshallToJSON(map<string, string> stats);
+	void saveFile(string fileContents);
 	void Log(string msg);
 
 	enum Events {
